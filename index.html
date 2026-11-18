@@ -23,9 +23,18 @@
       <p class="helper">Choose a week, then tap a score. Saves automatically.</p>
     </header>
 
-    <section class="blocked" id="blocked" role="alert" hidden>
-      <p class="blocked-title" id="blocked-title"></p>
-      <p class="blocked-body" id="blocked-body"></p>
+    <section class="blocked" id="blocked" hidden>
+      <div class="blocked-message" role="alert">
+        <p class="blocked-title" id="blocked-title"></p>
+        <p class="blocked-body" id="blocked-body"></p>
+      </div>
+      <div class="unlock" id="unlock" hidden>
+        <label class="label" for="unlock-key">Access key</label>
+        <div class="unlock-row">
+          <input class="control unlock-input" id="unlock-key" type="password" autocomplete="off" spellcheck="false">
+          <button type="button" class="btn" id="unlock-submit">Unlock</button>
+        </div>
+      </div>
       <button type="button" class="btn" id="retry" hidden>Retry</button>
     </section>
 

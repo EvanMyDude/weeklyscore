@@ -13,6 +13,7 @@ const SUPABASE_URL = 'https://uapcjhbsxvbwhhyieslb.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_n5Ah4b4s5eTzcgIIYG1Dmg_4z6XgUeR';
 
 const THEME_STORAGE_KEY = 'weeklyscore-theme'; // same key theme.js reads
+const ACCESS_KEY_STORAGE_KEY = 'weeklyscore-access-key';
 const TEXT_SAVE_DELAY_MS = 600;
 const CLEAR_CONFIRM_MS = 4000;
 const RETRY_MIN_MS = 2000;
@@ -43,19 +44,22 @@ const STATUS = {
 
 const BLOCKED = {
   nokey: {
-    title: 'Access key missing.',
-    body: 'Open this page from your Notion embed. Its link ends in ?k= followed by your access key.',
+    title: 'Access key needed.',
+    body: 'Paste your access key (or the full link that ends in ?k=) to unlock. This device remembers it.',
     retry: false,
+    unlock: true,
   },
   auth: {
     title: 'Access key not recognized.',
-    body: 'Check that the embed link has the whole key after ?k=. If you rotated the key, update the link.',
+    body: 'Paste the current access key to unlock. If you rotated the key, update the embed link too.',
     retry: false,
+    unlock: true,
   },
   network: {
     title: "Can't reach the database.",
     body: 'Check your connection. If Supabase paused the project for inactivity, restore it from the Supabase dashboard, then retry.',
     retry: true,
+    unlock: false,
   },
 };
 
@@ -106,10 +110,47 @@ async function rpc(name, body) {
   throw new ApiError('rejected', data?.message || `HTTP ${res.status}`);
 }
 
+// The key normally comes from the embed link (?k= or #k=). If the link arrives
+// without it, the key typed into the unlock box is kept in this browser's
+// storage for the embed, so it only has to be entered once per device.
 function readAccessKey() {
   const fromQuery = new URLSearchParams(window.location.search).get('k');
-  if (fromQuery) return fromQuery;
-  return new URLSearchParams(window.location.hash.slice(1)).get('k') || null;
+  if (fromQuery) return { key: fromQuery, source: 'link' };
+  const fromHash = new URLSearchParams(window.location.hash.slice(1)).get('k');
+  if (fromHash) return { key: fromHash, source: 'link' };
+  const stored = readStoredKey();
+  return stored ? { key: stored, source: 'storage' } : { key: null, source: null };
+}
+
+function readStoredKey() {
+  try {
+    return window.localStorage.getItem(ACCESS_KEY_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeKey(key) {
+  try {
+    window.localStorage.setItem(ACCESS_KEY_STORAGE_KEY, key);
+  } catch {
+    // Storage blocked in this frame; the key lasts until the page reloads.
+  }
+}
+
+function forgetStoredKey() {
+  try {
+    window.localStorage.removeItem(ACCESS_KEY_STORAGE_KEY);
+  } catch {
+    // Nothing stored.
+  }
+}
+
+// Accepts a bare key, or a pasted link containing ?k= / #k=.
+function parseKeyInput(value) {
+  const text = value.trim();
+  const match = /[?#&]k=([^&#\s]+)/.exec(text);
+  return match ? decodeURIComponent(match[1]) : text;
 }
 
 /* ---------- State ---------- */
@@ -121,6 +162,9 @@ const el = {
   blockedTitle: $('blocked-title'),
   blockedBody: $('blocked-body'),
   retry: $('retry'),
+  unlock: $('unlock'),
+  unlockKey: $('unlock-key'),
+  unlockSubmit: $('unlock-submit'),
   app: $('app'),
   weekInput: $('week-input'),
   weekRange: $('week-range'),
@@ -148,8 +192,11 @@ const el = {
 // input to text; there it shows the label read-only and ‹ › do the picking.
 const hasNativeWeekInput = el.weekInput.type === 'week';
 
+const initialKey = readAccessKey();
+
 const state = {
-  key: readAccessKey(),
+  key: initialKey.key,
+  keySource: initialKey.source, // 'link', 'storage' or 'typed'
   week: weekKeyForDate(new Date()),
   rows: new Map(), // week -> { week, score, moved_needle, one_change, updated_at }
   pending: new Map(), // week -> unsaved ws_save params, merged
@@ -269,6 +316,7 @@ async function load({ background = false } = {}) {
   } finally {
     el.retry.disabled = false;
   }
+  if (state.keySource !== 'storage') storeKey(state.key);
   const rows = new Map((list ?? []).map((row) => [row.week, row]));
   for (const [week, patch] of state.pending) {
     rows.set(week, withPatch(rows.get(week) ?? emptyRow(week), patch));
@@ -376,12 +424,34 @@ function flashStatus(name) {
 
 function block(kind) {
   state.blocked = kind;
+  // A remembered key that stopped working (rotated) shouldn't come back next time.
+  if (kind === 'auth' && state.keySource === 'storage') forgetStoredKey();
   const message = BLOCKED[kind];
   el.blockedTitle.textContent = message.title;
   el.blockedBody.textContent = message.body;
   el.retry.hidden = !message.retry;
+  el.unlock.hidden = !message.unlock;
+  el.unlockKey.value = '';
   el.blocked.hidden = false;
   el.app.hidden = true;
+}
+
+async function unlock() {
+  const key = parseKeyInput(el.unlockKey.value);
+  if (!key) {
+    el.unlockKey.focus();
+    return;
+  }
+  state.key = key;
+  state.keySource = 'typed';
+  el.unlockSubmit.disabled = true;
+  el.unlockSubmit.textContent = 'Checking…';
+  try {
+    await load();
+  } finally {
+    el.unlockSubmit.disabled = false;
+    el.unlockSubmit.textContent = 'Unlock';
+  }
 }
 
 function unblock() {
@@ -534,6 +604,11 @@ el.themeToggle.addEventListener('click', () => {
 });
 
 el.retry.addEventListener('click', () => load());
+// A button and Enter, not a <form>: the embed's sandbox may block form submission.
+el.unlockSubmit.addEventListener('click', unlock);
+el.unlockKey.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') unlock();
+});
 
 el.weekInput.addEventListener('change', () => {
   if (hasNativeWeekInput) selectWeek(el.weekInput.value);

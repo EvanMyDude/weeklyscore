@@ -19,6 +19,10 @@ Optional settings in the link:
 - `&theme=light` or `&theme=dark` sets the starting theme. The toggle on the page overrides it on that device.
 - If Notion ever drops the `?k=` part, use `#k=YOUR_ACCESS_KEY` instead.
 
+If the page opens without a key, it shows an *Access key* box. Paste the key (or the whole link) and it unlocks; that browser or app remembers the key, so each device only needs it once. A remembered key that stops working, such as after a rotation, is forgotten and the box comes back.
+
+If the embed sits inside a Notion button's template, edit the embed link in the template too, or every new week copies the old link.
+
 Anyone who can see the Notion page can see the key in the embed link, so don't publish that page to the web.
 
 ## How it works
