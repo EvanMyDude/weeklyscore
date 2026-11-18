@@ -320,12 +320,11 @@ function syncText(textarea, value, force) {
 }
 
 function renderHistory() {
-  el.clear.disabled = !hasContent(rowFor(state.week)) && el.clear.dataset.armed !== 'true';
-
   const rows = [...state.rows.values()]
     .filter(hasContent)
     .sort((a, b) => (a.week < b.week ? 1 : -1));
   el.historyTitle.hidden = rows.length === 0;
+  el.historyList.hidden = rows.length === 0;
   el.historyEmpty.hidden = rows.length > 0;
 
   const focusedWeek = document.activeElement?.closest?.('.history-item')?.dataset.week;
@@ -438,7 +437,6 @@ function disarmClear() {
   if (el.clear.dataset.armed !== 'true') return;
   delete el.clear.dataset.armed;
   el.clear.textContent = 'Clear this week';
-  renderHistory();
 }
 
 async function clearWeek(week) {
