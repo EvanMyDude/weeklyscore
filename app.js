@@ -427,6 +427,8 @@ function onClear() {
     return;
   }
   disarmClear();
+  // Nothing saved or pending for this week: nothing to delete.
+  if (!state.rows.has(state.week) && !state.pending.has(state.week)) return;
   state.clearing = clearWeek(state.week).finally(() => {
     state.clearing = null;
   });
