@@ -135,7 +135,8 @@ end;
 $$;
 
 -- Keyless on purpose: it only bumps one timestamp, and the keep-alive
--- workflow can call it without a repository secret.
+-- workflow can call it without a repository secret. The WHERE clause is
+-- required because Supabase rejects UPDATE without one on API requests.
 create function public.ws_heartbeat()
 returns timestamptz
 language sql
@@ -143,7 +144,7 @@ volatile
 security definer
 set search_path = ''
 as $$
-  update weeklyscore.heartbeat set beat_at = now() returning beat_at;
+  update weeklyscore.heartbeat set beat_at = now() where id returning beat_at;
 $$;
 
 revoke execute on function public.ws_list(text) from public;

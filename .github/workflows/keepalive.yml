@@ -1,0 +1,33 @@
+# Supabase pauses free projects after about a week without database
+# activity. This writes a heartbeat row every 3 days so a skipped weekly
+# review doesn't pause it. If the project is already paused, the run fails,
+# which makes the problem visible in the Actions tab.
+#
+# GitHub turns off scheduled workflows after 60 days with no commits to the
+# repository. If that happens, re-enable it from the Actions tab.
+name: Keep database awake
+
+on:
+  schedule:
+    - cron: "23 14 */3 * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Write heartbeat
+        env:
+          # Public by design; the same key ships in app.js.
+          SUPABASE_URL: https://uapcjhbsxvbwhhyieslb.supabase.co
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_n5Ah4b4s5eTzcgIIYG1Dmg_4z6XgUeR
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-all-errors --retry-delay 10 \
+            -X POST "$SUPABASE_URL/rest/v1/rpc/ws_heartbeat" \
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}'
